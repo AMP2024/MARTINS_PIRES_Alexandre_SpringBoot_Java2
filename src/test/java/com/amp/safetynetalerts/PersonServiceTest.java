@@ -10,11 +10,11 @@ import com.amp.safetynetalerts.utils.PersonMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-
+import static com.amp.safetynetalerts.service.PersonService.calculateAge;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
-
+import java.time.LocalDate;
 import java.util.*;
 
 import org.mockito.ArgumentCaptor;
@@ -22,7 +22,7 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-
+import org.springframework.boot.test.mock.mockito.MockBean;
 import static org.mockito.Mockito.*;
 
 import java.util.Arrays;
@@ -32,9 +32,11 @@ import java.util.List;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import com.amp.safetynetalerts.model.*;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(SpringExtension.class)
 @SpringBootTest
@@ -99,6 +101,15 @@ public class PersonServiceTest {
     }
 
     @Test
+    public void testCountAdultsAndChildren() {
+
+        List<PersonWithMedicalRecordDTO> personWithMedicalRecordDTOList = personServiceMock.processPersonsAndRecords(persons, medicalRecords);
+        Map<String, Long> countMap = personServiceMock.countAdultsAndChildren(personWithMedicalRecordDTOList);
+        assertEquals(1, countMap.get("Adults"));
+        assertEquals(1, countMap.get("Children"));
+    }
+
+    @Test
     public void testAddPerson() {
 
         personServiceMock.addPerson(persons, "Jacques", "Adit", "27 place de la forêt", "Bordeaux", "33072", "05-56-00-11-22", "jacques@adit.com");
@@ -132,6 +143,85 @@ public class PersonServiceTest {
     }
 
     @Test
+    public void testGetPersonsByAddresses() {
+
+        List<String> addresses = List.of("123 rue de l'harmonie");
+
+        person1.setPhone("01-43-50-00-01");
+        person2.setPhone("01-43-50-00-02");
+
+        List<Person> result = personServiceMock.getPersonsByAddresses(persons, addresses);
+        assertEquals(2, result.size());
+        assertTrue(result.contains(person1));
+        assertTrue(result.contains(person2));
+    }
+
+    @Test
+    public void testGetListOfPhoneNumbers() {
+
+        List<String> addresses = List.of("123 rue de l'harmonie");
+        List<String> phoneNumbers = personServiceMock.getListOfPhoneNumbers(persons, addresses);
+        assertEquals(2, phoneNumbers.size());
+        assertTrue(phoneNumbers.contains(person1.getPhone()));
+        assertTrue(phoneNumbers.contains(person2.getPhone()));
+    }
+
+    @Test
+    public void testProcessPersonsAndRecords() {
+
+        List<PersonWithMedicalRecordDTO> result = personServiceMock.processPersonsAndRecords(persons, medicalRecords);
+        assertEquals(2, result.size());
+        assertEquals(person1.getFirstName(), result.get(0).getFirstName());
+        assertEquals(person1.getLastName(), result.get(0).getLastName());
+        assertEquals(person2.getFirstName(), result.get(1).getFirstName());
+        assertEquals(person2.getLastName(), result.get(1).getLastName());
+    }
+
+
+    @Test
+    public void testExtractChildren() {
+
+        List<PersonWithMedicalRecordDTO> allPersons = personServiceMock.processPersonsAndRecords(persons, medicalRecords);
+        List<PersonWithMedicalRecordDTO> children = personServiceMock.extractChildren(allPersons);
+        assertEquals(1, children.size());
+        assertEquals("Jeanne", children.get(0).getFirstName());
+        assertEquals("Dupont", children.get(0).getLastName());
+    }
+
+    @Test
+    public void testFetchHouseholds() {
+
+        List<PersonWithMedicalRecordDTO> allPersons = personServiceMock.processPersonsAndRecords(persons, medicalRecords);
+        List<PersonWithMedicalRecordDTO> children = personServiceMock.extractChildren(allPersons);
+        List<HouseholdDTO> households = personServiceMock.fetchHouseholds(allPersons, children);
+        assertEquals(1, households.size());
+        assertEquals(2, households.get(0).getHouseholdMembers().size());
+    }
+
+    @Test
+    public void testProcessPersonsDataOfInhabitants() {
+
+        List<DataOfInhabitantsDTO> result = personServiceMock.processPersonsDataOfInhabitants(persons, medicalRecords, 1);
+        assertEquals(2, result.size());
+        assertEquals(person1.getFirstName(), result.get(0).getFirstName());
+        assertEquals(person1.getLastName(), result.get(0).getLastName());
+        assertEquals(person2.getFirstName(), result.get(1).getFirstName());
+        assertEquals(person2.getLastName(), result.get(1).getLastName());
+    }
+
+    @Test
+    public void testProcessPersonsToPersoInfoDTOs() {
+
+        List<PersoInfoDTO> result = personServiceMock.processPersonsToPersoInfoDTOs(persons, medicalRecords);
+        assertEquals(2, result.size());
+        assertEquals("Jean", result.get(0).getFirstName());
+        assertEquals("Dupont", result.get(0).getLastName());
+        assertEquals("Jeanne", result.get(1).getFirstName());
+        assertEquals("Dupont", result.get(1).getLastName());
+    }
+
+
+    @Test
     public void testAddAndPersistPerson() throws IOException {
         
         PersonDTO result = personServiceMock.addAndPersistPerson(person2);
@@ -139,6 +229,19 @@ public class PersonServiceTest {
         assertNotNull(result);
         assertEquals(PersonMapper.toPersonDTO(person2), result);
     }
+
+
+    @Test
+    public void testGetPersonsDataByFirestationNumber() {
+        
+        List<Integer> stationNumbers = Arrays.asList(1, 2);
+
+        Map<Integer, List<DataOfInhabitantsDTO>> result = personServiceMock.getPersonsDataByFirestationNumber(stationNumbers);
+
+        assertNotNull(result);
+        assertEquals(stationNumbers.size(), result.keySet().size());
+    }
+
 
     @Test
     public void testDeletePersonDataWrapper() throws IOException {
@@ -168,6 +271,15 @@ public class PersonServiceTest {
     }
 
     @Test
+    public void testGetCommunityEmailsService() {
+        
+        String city = "Paris";
+        List<String> result = personServiceMock.getCommunityEmailsService(city);
+        assertFalse(result.isEmpty());
+        assertTrue(result.stream().anyMatch(email -> email.endsWith("@example.com")));
+    }
+
+    @Test
     public void testFetchPerson() throws IOException, NoHandlerFoundException {
         String firstName = "Pierre";
         String lastName = "Dupont";
@@ -187,6 +299,77 @@ public class PersonServiceTest {
             assertNotNull(result);
             assertEquals(firstName, result.getFirstName());
             assertEquals(lastName, result.getLastName());
+        }
+    }
+
+    @Test
+    public void testGetChildAlertData() {
+        String adresse = "27 place de la forêt";
+        String prenom = "prenom";
+        String nom = "nom";
+        Person enfant = new Person();
+        enfant.setAddress(adresse);
+        enfant.setFirstName(prenom);
+        enfant.setLastName(nom);
+
+        MedicalRecord dossierMedical = new MedicalRecord();
+        dossierMedical.setBirthdate("02/02/2014");
+        dossierMedical.setFirstName(prenom);
+        dossierMedical.setLastName(nom);
+
+        try (MockedStatic<DataWrapperRepository> mocked = Mockito.mockStatic(DataWrapperRepository.class)) {
+            mocked.when(DataWrapperRepository::getDataWrapper).thenReturn(new DataWrapper(Collections.singletonList(enfant), Collections.emptyList(), Collections.singletonList(dossierMedical)));
+
+            Optional<Map<String, HouseholdDTO>> resultat = personServiceMock.getChildAlertData(adresse);
+
+            assertTrue(resultat.isPresent());
+
+            mocked.verify(DataWrapperRepository::getDataWrapper);
+        }
+    }
+
+    @Test
+    public void testGetPersonInfoDataWrapper() {
+        // Initializing the mock
+        String firstName = "Jacques";
+        String lastName = "Dupont";
+        Person person = new Person();
+        person.setFirstName(firstName);
+        person.setLastName(lastName);
+        MedicalRecord medicalRecord = new MedicalRecord();
+        medicalRecord.setFirstName(firstName);
+        medicalRecord.setLastName(lastName);
+        DataWrapper dataWrapper = new DataWrapper(Arrays.asList(person), new ArrayList<>(), Arrays.asList(medicalRecord));
+
+        // Initializing a list of PersoInfoDTO
+        List<PersoInfoDTO> expectedResult = new ArrayList<>();
+        PersoInfoDTO dto = new PersoInfoDTO();
+        dto.setFirstName("Jean");
+        dto.setLastName("Dupond");
+        dto.setAddress("10 Rue de la Paix");
+        dto.setCity("Paris");
+        dto.setZip("75000");
+        dto.setAge(30);
+        dto.setEmail("jean@dupond.fr");
+        dto.setMedications(new ArrayList<>());
+        dto.setAllergies(new ArrayList<>());
+        expectedResult.add(dto);
+
+        // Mock the PersonService & static class
+        PersonService personServiceMockTemp = mock(PersonService.class);
+        when(personServiceMockTemp.getPersonInfoDataWrapper(firstName, lastName)).thenReturn(expectedResult);
+
+        try (MockedStatic<DataWrapperRepository> mocked = Mockito.mockStatic(DataWrapperRepository.class)) {
+            mocked.when(DataWrapperRepository::getDataWrapper).thenReturn(dataWrapper);
+
+            // Running the method to test
+            List<PersoInfoDTO> result = personServiceMockTemp.getPersonInfoDataWrapper(firstName, lastName);
+
+            // Verification of the results
+            assertEquals(expectedResult.size(), result.size());
+            assertEquals(expectedResult.get(0).getFirstName(), result.get(0).getFirstName());
+            assertEquals(expectedResult.get(0).getLastName(), result.get(0).getLastName());
+
         }
     }
 
@@ -220,4 +403,44 @@ public class PersonServiceTest {
 
     }
 
+    @Test
+    public void testCalculateAge() {
+        String birthdate = "01/01/2000";
+        LocalDate date = LocalDate.of(2024, 1, 1);
+        int result = calculateAge(birthdate, date);
+        assertEquals(24, result);
+    }
+
+    @Test
+    public void testProcessDataByAddress() {
+
+        DataWrapper dataWrapperMock = new DataWrapper();
+        List<Person> personsToMock = Arrays.asList(
+                new Person("Caroline", "Duchesse", "29 15th St", "Culver", "97451", "841-874-6513", "drk@email.com"),
+                new Person("Peter", "Duncan", "644 Gershwin Cir", "Culver", "97451", "841-874-6512", "jaboyd@email.com"),
+                new Person("Foster", "Shepard", "29 15th St", "Culver", "97451", "841-874-6544", "jaboyd@email.com"));
+        List<Firestation> firestationsToMock = Arrays.asList(
+                new Firestation("1509 Culver St", 3),
+                new Firestation("29 15th St", 2));
+        List<MedicalRecord> medicalRecordsToMock = Arrays.asList(
+                new MedicalRecord("Peter", "Duncan", "09/06/2000", Arrays.asList(), Arrays.asList()),
+                new MedicalRecord("Caroline", "Duchesse", "03/15/1965", Arrays.asList("aznol:200mg"), Arrays.asList("nillacilan")),
+                new MedicalRecord("Foster", "Shepard", "01/03/1989", Arrays.asList(), Arrays.asList()));
+        dataWrapperMock.setPersons(personsToMock);
+        dataWrapperMock.setFirestations(firestationsToMock);
+        dataWrapperMock.setMedicalrecords(medicalRecordsToMock);
+
+        try (MockedStatic<DataWrapperRepository> mocked = Mockito.mockStatic(DataWrapperRepository.class)) {
+            mocked.when(DataWrapperRepository::getDataWrapper).thenReturn(dataWrapperMock);
+
+            List<DataOfInhabitantsDTO> expectedResults = Arrays.asList(
+                    new DataOfInhabitantsDTO(2, "Caroline", "Duchesse", "841-874-6513", calculateAge("03/15/1965", LocalDate.now()), Arrays.asList("aznol:200mg"), Arrays.asList("nillacilan")),
+                    new DataOfInhabitantsDTO(2, "Foster", "Shepard", "841-874-6544", calculateAge("01/03/1989", LocalDate.now()), Arrays.asList(), Arrays.asList())
+            );
+
+            List<DataOfInhabitantsDTO> results = personServiceMock.processDataByAddress("29 15th St");
+
+            assertEquals(expectedResults, results);
+        }
+    }
 }
