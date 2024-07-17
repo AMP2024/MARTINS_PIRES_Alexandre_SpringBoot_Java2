@@ -11,11 +11,21 @@ import java.io.*;
 import com.google.gson.GsonBuilder;
 import org.springframework.stereotype.Repository;
 
+/**
+ * Repository class that handles data read/write operations to a JSON file.
+ */
 @Repository
 public class DataWrapperRepository {
 
     private static final Logger LOGGER = LogManager.getLogger(DataWrapperRepository.class);
 
+    /**
+     * Reads data stored in a JSON file and maps it into an object.
+     *
+     * @param type     The type of the object to which the data should be mapped.
+     * @param classOfT The class type to which the data should be mapped.
+     * @return The object mapped from the JSON file.
+     */
     public static <T> T loadDataFromFile(T type, Class<T> classOfT) {
         T data = null;
         try (JsonReader reader = new JsonReader(new FileReader("data.json"))) {
@@ -27,6 +37,12 @@ public class DataWrapperRepository {
         return data;
     }
 
+    /**
+     * Retrieves the DataWrapper object from the JSON file.
+     *
+     * @return The DataWrapper object.
+     * @throws IllegalStateException If the DataWrapper object is null.
+     */
     public static DataWrapper getDataWrapper() {
         DataWrapper data = loadDataFromFile(null, DataWrapper.class);
         if (data == null) {
@@ -36,6 +52,12 @@ public class DataWrapperRepository {
         return data;
     }
 
+    /**
+     * Updates the data.json file with the provided DataWrapper object.
+     *
+     * @param dataWrapper The DataWrapper object to be saved into the file.
+     * @throws IOException If an error occurred while updating the file with DataWrapper.
+     */
     public static void updateFileWithDataWrapper(DataWrapper dataWrapper) throws IOException {
         try (Writer writer = new FileWriter("data.json")) {
             Gson gson = new GsonBuilder().setPrettyPrinting().create();

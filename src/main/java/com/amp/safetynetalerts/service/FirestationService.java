@@ -7,7 +7,6 @@ import com.amp.safetynetalerts.exception.FirestationUpdateException;
 import com.amp.safetynetalerts.model.DataWrapper;
 import com.amp.safetynetalerts.model.Firestation;
 
-
 import com.amp.safetynetalerts.utils.*;
 
 import java.io.IOException;
